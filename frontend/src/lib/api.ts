@@ -1,6 +1,5 @@
 import type { EmailDetail, EmailRow, ScheduleInput, SlackStatus, User } from '../types';
-export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
-
+export const API_URL = import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? '' : 'http://localhost:4000');
 export class ApiError extends Error { constructor(message: string, public status: number) { super(message); } }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
