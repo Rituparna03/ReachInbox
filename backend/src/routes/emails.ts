@@ -55,9 +55,9 @@ emailsRouter.post('/api/emails/schedule', async (req: AuthedRequest, res) => {
     })));
   }
   // 3) Index for search (best effort).
-  await indexEmails(rows.map(r => ({
-    id: r.id, userId, toEmail: r.to, subject, body, status: 'scheduled', scheduledAt: r.at.toISOString(),
-  })));
+  void indexEmails(rows.map(r => ({
+  id: r.id, userId, toEmail: r.to, subject, body, status: 'scheduled', scheduledAt: r.at.toISOString(),
+    }))).catch(() => {}); 
 
   res.status(201).json({ batchId, count: rows.length, senders: senders.map(s => s.email) });
 });

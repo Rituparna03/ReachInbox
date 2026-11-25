@@ -5,6 +5,8 @@ import { config } from '../config';
 export const searchEnabled = !!config.esUrl;
 export const es = new Client({
   node: config.esUrl || 'http://localhost:9200',
+  requestTimeout: 3000,
+  maxRetries: 1,
   ...(config.esApiKey ? { auth: { apiKey: config.esApiKey } } : {}),
 });
 const INDEX = 'emails';
@@ -47,5 +49,6 @@ export async function searchEmailIds(userId: string, q: string, statuses: string
       must: [{ multi_match: { query: q, fields: ['toEmail', 'subject', 'body'], fuzziness: 'AUTO' } }],
     } },
   });
+
   return r.hits.hits.map(h => h._id as string);
 }
