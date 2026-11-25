@@ -52,12 +52,32 @@ async function process_(job: Job<EmailJobData>, token?: string) {
   // 3. Send.
   try {
     const { rows: [sender] } = await pool.query<Sender>('SELECT * FROM senders WHERE id=$1', [senderId]);
-    const info = await transportFor(sender).sendMail({
-      from: `"ReachInbox Scheduler" <${sender.email}>`,
-      to: email.to_email, subject: email.subject, html: email.body, text: email.body.replace(/<[^>]+>/g, ''),
-      messageId: `<${emailId}@reachinbox.local>`, // stable id => downstream can de-dupe
-    });
-    const preview = nodemailer.getTestMessageUrl(info) || null;
+    let preview: string | null = null;
+
+    if (process.env.BREVO_API_KEY) {
+      // HTTPS (port 443) works on Render free tier; SMTP ports are blocked there.
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: { 'api-key': process.env.BREVO_API_KEY, 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({
+          sender: { name: 'ReachInbox Scheduler', email: process.env.BREVO_SENDER_EMAIL },
+          to: [{ email: email.to_email }],
+          subject: email.subject,
+          htmlContent: email.body,
+          textContent: email.body.replace(/<[^>]+>/g, ''),
+        }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!res.ok) throw new Error(`Brevo ${res.status}: ${await res.text()}`);
+    } else {
+      // Local dev: Ethereal fake SMTP.
+      const info = await transportFor(sender).sendMail({
+        from: `"ReachInbox Scheduler" <${sender.email}>`,
+        to: email.to_email, subject: email.subject, html: email.body, text: email.body.replace(/<[^>]+>/g, ''),
+        messageId: `<${emailId}@reachinbox.local>`, // stable id => downstream can de-dupe
+      });
+      preview = nodemailer.getTestMessageUrl(info) || null;
+    }
     await pool.query(`UPDATE emails SET status='sent', sent_at=now(), preview_url=$2, error=NULL WHERE id=$1`, [emailId, preview]);
     await updateEmailDoc(emailId, { status: 'sent', sentAt: new Date().toISOString() });
     return 'sent';
